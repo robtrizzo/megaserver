@@ -35,6 +35,11 @@ const config: ForgeConfig = {
           config: "vite.preload.config.ts",
           target: "preload",
         },
+        {
+          entry: "src/nitro-worker.ts",
+          config: "vite.main.config.ts",
+          target: "main",
+        },
       ],
       renderer: [
         {

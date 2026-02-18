@@ -9,7 +9,8 @@
     "start": "electron-forge start",
     "dev": "concurrently \"cd ../web && npm run dev\" \"sleep 3 && electron-forge start\"",
     "build:web": "cd ../web && npm run build",
-    "package": "electron-forge package",
+    "rebuild:output": "electron-rebuild -m ../web/.output/server",
+    "package": "npm run build:web && electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx ."
