@@ -64,11 +64,20 @@ const createWindow = async () => {
     },
   });
 
-  // Security: Restrict navigation to localhost only
+  // Security: Restrict navigation to localhost and Clerk
   mainWindow.webContents.on("will-navigate", (event, url) => {
     const parsedUrl = new URL(url);
-    // Only allow navigation to localhost/127.0.0.1
-    if (!["localhost", "127.0.0.1"].includes(parsedUrl.hostname)) {
+    // Only allow navigation to localhost/127.0.0.1 and Clerk
+    if (
+      ![
+        "localhost",
+        "127.0.0.1",
+        "discord.com",
+        "accounts.google.com",
+        "clerk.shared.lcl.dev",
+      ].includes(parsedUrl.hostname) &&
+      !parsedUrl.hostname.endsWith(".accounts.dev")
+    ) {
       event.preventDefault();
       log.warn("Blocked navigation to:", url);
     }
@@ -77,8 +86,16 @@ const createWindow = async () => {
   // Security: Control new window creation
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     const parsedUrl = new URL(url);
-    // Deny all new windows, or only allow specific localhost URLs
-    if (["localhost", "127.0.0.1"].includes(parsedUrl.hostname)) {
+    if (
+      [
+        "localhost",
+        "127.0.0.1",
+        "discord.com",
+        "accounts.google.com",
+        "clerk.shared.lcl.dev",
+      ].includes(parsedUrl.hostname) ||
+      parsedUrl.hostname.endsWith(".accounts.dev")
+    ) {
       return { action: "allow" };
     }
     log.warn("Blocked window.open to:", url);
