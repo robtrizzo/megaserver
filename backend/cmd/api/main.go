@@ -1,7 +1,5 @@
-package main
-
-import "fmt"
+package api
 
 func main() {
-	fmt.Print("Hello World")
+	setupRoutes()
 }
