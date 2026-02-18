@@ -9,7 +9,8 @@ import (
 func (app *application) routes() http.Handler {
 	mux := http.NewServeMux()
 
-	mountGroup(mux, "/api", func(g *routeGroup) {
+	mountGroup(mux, "/v1", func(g *routeGroup) {
+		g.Handle("/healthcheck", app.healthcheckHandler)
 		g.Handle("/settings", app.userSettings)
 	}, clerkhttp.WithHeaderAuthorization(), logRoute())
 
