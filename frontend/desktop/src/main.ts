@@ -48,8 +48,13 @@ const createWindow = async () => {
   // Security: Deny all permission requests by default
   session.defaultSession.setPermissionRequestHandler(
     (webContents, permission, callback) => {
-      log.warn("Denied permission request:", permission);
-      callback(false); // Deny all by default
+      const allowedPermissions = ["media", "mediaKeySystem"];
+      if (allowedPermissions.includes(permission)) {
+        callback(true);
+      } else {
+        log.warn("Denied permission request:", permission);
+        callback(false);
+      }
     },
   );
 
