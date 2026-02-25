@@ -8,3 +8,8 @@ terraform {
 
   required_version = ">= 1.2"
 }
+
+resource "tls_private_key" "autokey" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
