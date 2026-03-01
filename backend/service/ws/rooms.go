@@ -82,41 +82,6 @@ type signalingMessage struct {
 	ICECandidate *json.RawMessage `json:"iceCandidate,omitempty"`
 }
 
-func (app *application) broadcaster() {
-	for {
-		select {
-		case <-done:
-			connMuMu.Lock()
-			for conn := range connMu {
-				conn.Close()
-				delete(connMu, conn)
-			}
-			connMuMu.Unlock()
-			app.logger.Info("broadcaster shutting down")
-			return
-
-			// TODO this might be able to be removed entirely
-			// case msg := <-broadcast:
-			// for _, client := range AllRooms.Map[msg.RoomID] {
-			// 	if client.Conn != msg.Client {
-			// 		err := client.Conn.WriteJSON(msg.Message)
-			// 		if err != nil {
-			// 			mu := getConnMu(client.Conn)
-			// 			mu.Lock()
-			// 			err := client.Conn.WriteJSON(msg.Message)
-			// 			mu.Unlock()
-			// 			if err != nil {
-			// 				app.logger.Error(err.Error())
-			// 				client.Conn.Close()
-			// 				removeConnMu(client.Conn)
-			// 			}
-			// 		}
-			// 	}
-			// }
-		}
-	}
-}
-
 func (app *application) joinRoomRequestHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO break this out into a util or middleware
 	roomID, ok := r.URL.Query()["roomID"]
@@ -129,7 +94,7 @@ func (app *application) joinRoomRequestHandler(w http.ResponseWriter, r *http.Re
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// TODO make this a structured error
-		app.logger.Error("Web Socket Upgrade Error", err.Error())
+		app.logger.Error("Web Socket Upgrade Error", "error", err)
 		return
 	}
 
@@ -147,17 +112,35 @@ func (app *application) joinRoomRequestHandler(w http.ResponseWriter, r *http.Re
 
 	defer app.leave(roomID[0], peerID, ws)
 
+	shutdownDone := make(chan struct{})
+	defer close(shutdownDone)
+
+	app.background(func() {
+		select {
+		case <-done:
+			ws.Close()
+		case <-shutdownDone:
+			return
+		}
+	})
+
 	for {
 		var msg signalingMessage
 
 		err := ws.ReadJSON(&msg)
+
 		if err != nil {
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
-				app.logger.Info("client disconnected", "roomID", roomID[0], "peerID", peerID)
-			} else {
-				app.logger.Error("Read Error", "error", err)
+			select {
+			case <-done:
+				app.logger.Info("shutdown signal received, closing connection", "peerID", peerID)
+			default:
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
+					app.logger.Info("client disconnected", "roomID", roomID[0], "peerID", peerID)
+				} else {
+					app.logger.Error("Read Error", "error", err, "peerID", peerID)
+				}
 			}
-			break
+			return
 		}
 
 		switch msg.Type {

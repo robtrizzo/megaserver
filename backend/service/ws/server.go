@@ -48,9 +48,6 @@ func (app *application) serve() error {
 		shutdownError <- nil
 	}()
 
-	// TODO this could potentially be removed entirely
-	// app.background(func() { app.broadcaster() })
-
 	AllRooms.Init()
 
 	app.logger.Info("starting server", "addr", srv.Addr, "env", app.config.env)
