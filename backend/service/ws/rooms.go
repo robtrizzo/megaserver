@@ -129,7 +129,7 @@ func (app *application) joinRoomRequestHandler(w http.ResponseWriter, r *http.Re
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// TODO make this a structured error
-		app.logger.Error("Web Socket Upgrade Error", err)
+		app.logger.Error("Web Socket Upgrade Error", err.Error())
 		return
 	}
 
@@ -138,6 +138,12 @@ func (app *application) joinRoomRequestHandler(w http.ResponseWriter, r *http.Re
 	AllRooms.InsertIntoRoom(roomID[0], peerID, false, ws)
 
 	app.logger.Info("peer joined", "roomID", roomID[0], "peerID", peerID)
+
+	// send the peer their own ID immediately after connection
+	sendJSON(ws, map[string]any{
+		"type":     "client-id",
+		"clientId": peerID,
+	})
 
 	defer app.leave(roomID[0], peerID, ws)
 
