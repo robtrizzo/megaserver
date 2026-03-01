@@ -1,5 +1,6 @@
 import type { SignalingMessage } from "@/types/message";
 import { useEffect, useRef, useCallback, useState } from "react";
+import { useIceServers } from "./useIceServers";
 
 interface UseWebRTCOptions {
   roomId: string;
@@ -13,14 +14,21 @@ interface PeerState {
   ignoreOffer: boolean;
 }
 
+export type WebRTCStatus = "idle" | "connecting" | "connected" | "error";
+
 export function useWebRTC(
   localVideoRef: React.RefObject<HTMLVideoElement | null>,
   { roomId, signalingUrl }: UseWebRTCOptions,
 ) {
+  const { data: iceServers, isPending: iceServersPending } = useIceServers();
+
   const peersRef = useRef<Map<string, PeerState>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const clientIdRef = useRef<string>("");
+
+  const [status, setStatus] = useState<WebRTCStatus>("idle");
+  const [error, setError] = useState<Error | null>(null);
 
   // Reactive state so the component re-renders when remote streams change
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(
@@ -58,14 +66,7 @@ export function useWebRTC(
   const createPeer = useCallback(
     (peerId: string) => {
       const pc = new RTCPeerConnection({
-        iceServers: [
-          {
-            urls: [
-              "stun:stun1.l.google.com:19302",
-              "stun:stun2.l.google.com:19302",
-            ],
-          },
-        ],
+        iceServers: iceServers ?? [],
         iceCandidatePoolSize: 10,
       });
 
@@ -194,107 +195,98 @@ export function useWebRTC(
   );
 
   useEffect(() => {
+    if (iceServersPending) return;
+
     let cancelled = false;
 
     const start = async () => {
-      // 1) get local media
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
+      setStatus("connecting");
+      setError(null);
 
-      if (cancelled) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
 
-      localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
 
-      // 2) open signaling socket
-      const ws = new WebSocket(`${signalingUrl}?roomID=${roomId}`);
-      wsRef.current = ws;
+        localStreamRef.current = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
 
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "join" }));
-      };
+        const ws = new WebSocket(`${signalingUrl}?roomID=${roomId}`);
+        wsRef.current = ws;
 
-      ws.onmessage = async (e) => {
-        const message: SignalingMessage = JSON.parse(e.data);
+        ws.onopen = () => {
+          setStatus("connected");
+          ws.send(JSON.stringify({ type: "join" }));
+        };
 
-        switch (message.type) {
-          case "client-id":
-            clientIdRef.current = message.clientId;
-            break;
+        ws.onerror = (e) => {
+          console.error("WebSocket error:", e);
+          setError(new Error("WebSocket connection failed"));
+          setStatus("error");
+        };
 
-          case "peer-joined":
-            if (clientIdRef.current < message.peerId) {
-              callPeer(message.peerId);
-            }
-            break;
+        ws.onmessage = async (e) => {
+          const message: SignalingMessage = JSON.parse(e.data);
 
-          case "peers-list":
-            if (!Array.isArray(message.peers)) {
-              console.warn("peers-list message has invalid peers:", message);
+          switch (message.type) {
+            case "client-id":
+              clientIdRef.current = message.clientId;
               break;
-            }
-            for (const peerId of message.peers) {
-              if (clientIdRef.current < peerId) {
-                callPeer(peerId);
+            case "peer-joined":
+              if (clientIdRef.current < message.peerId) {
+                callPeer(message.peerId);
               }
-            }
-            break;
-
-          case "peer-left":
-            removePeer(message.peerId);
-            break;
-
-          case "offer":
-            await handleOffer(message.peerId, message.offer);
-            break;
-
-          case "answer": {
-            const peer = peersRef.current.get(message.peerId);
-            if (!peer) {
-              console.warn(`Ignoring answer for peer ${message.peerId}.`);
               break;
-            }
-            if (peer.pc.signalingState !== "have-local-offer") {
-              console.warn(
-                `Ignoring answer for peer ${message.peerId} - wrong state: ${peer.pc.signalingState}`,
+            case "peers-list":
+              if (!Array.isArray(message.peers)) break;
+              for (const peerId of message.peers) {
+                if (clientIdRef.current < peerId) {
+                  callPeer(peerId);
+                }
+              }
+              break;
+            case "peer-left":
+              removePeer(message.peerId);
+              break;
+            case "offer":
+              await handleOffer(message.peerId, message.offer);
+              break;
+            case "answer": {
+              const peer = peersRef.current.get(message.peerId);
+              if (!peer || peer.pc.signalingState !== "have-local-offer") break;
+              await peer.pc.setRemoteDescription(
+                new RTCSessionDescription(message.answer),
               );
               break;
             }
-            await peer.pc.setRemoteDescription(
-              new RTCSessionDescription(message.answer),
-            );
-
-            break;
-          }
-
-          case "ice-candidate": {
-            const peer = peersRef.current.get(message.peerId);
-            if (peer && peer.pc.remoteDescription) {
-              try {
+            case "ice-candidate": {
+              const peer = peersRef.current.get(message.peerId);
+              if (peer?.pc.remoteDescription) {
                 await peer.pc.addIceCandidate(message.iceCandidate);
-              } catch (err) {
-                console.error("ICE candidate error:", err);
               }
+              break;
             }
-            break;
           }
-
-          default:
-            console.warn("Unknown signaling message:", message);
+        };
+      } catch (err) {
+        if (!cancelled) {
+          const e = err instanceof Error ? err : new Error(String(err));
+          setError(e);
+          setStatus("error");
+          console.error("WebRTC start error:", e);
         }
-      };
-
-      ws.onerror = (err) => console.error("WebSocket error:", err);
+      }
     };
 
-    start().catch(console.error);
+    start();
 
     return () => {
       cancelled = true;
@@ -305,8 +297,17 @@ export function useWebRTC(
       wsRef.current?.close();
       wsRef.current = null;
       localStreamRef.current = null;
+      setStatus("idle");
     };
-  }, [roomId, signalingUrl, callPeer, handleOffer, removePeer, localVideoRef]);
+  }, [
+    roomId,
+    signalingUrl,
+    callPeer,
+    handleOffer,
+    removePeer,
+    localVideoRef,
+    iceServersPending,
+  ]);
 
-  return { remoteStreams };
+  return { remoteStreams, status, error, isPending: iceServersPending };
 }

@@ -11,4 +11,15 @@ export const api = {
     if (!resp.ok) throw new Error(`Request failed: ${path}`);
     return resp.json();
   },
+  getIceServers: async (): Promise<RTCIceServer[]> => {
+    // Replace with TURN server endpoint if needed
+    return [
+      {
+        urls: [
+          "stun:stun1.l.google.com:19302",
+          "stun:stun2.l.google.com:19302",
+        ],
+      },
+    ];
+  },
 };

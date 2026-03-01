@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as R404RouteImport } from './routes/$404'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoomRoomIdRouteImport } from './routes/room.$roomId'
 import { Route as DemoClerkRouteImport } from './routes/demo/clerk'
 
+const R404Route = R404RouteImport.update({
+  id: '/$404',
+  path: '/$404',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,36 +37,47 @@ const DemoClerkRoute = DemoClerkRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$404': typeof R404Route
   '/demo/clerk': typeof DemoClerkRoute
   '/room/$roomId': typeof RoomRoomIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$404': typeof R404Route
   '/demo/clerk': typeof DemoClerkRoute
   '/room/$roomId': typeof RoomRoomIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$404': typeof R404Route
   '/demo/clerk': typeof DemoClerkRoute
   '/room/$roomId': typeof RoomRoomIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/demo/clerk' | '/room/$roomId'
+  fullPaths: '/' | '/$404' | '/demo/clerk' | '/room/$roomId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/demo/clerk' | '/room/$roomId'
-  id: '__root__' | '/' | '/demo/clerk' | '/room/$roomId'
+  to: '/' | '/$404' | '/demo/clerk' | '/room/$roomId'
+  id: '__root__' | '/' | '/$404' | '/demo/clerk' | '/room/$roomId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  R404Route: typeof R404Route
   DemoClerkRoute: typeof DemoClerkRoute
   RoomRoomIdRoute: typeof RoomRoomIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/$404': {
+      id: '/$404'
+      path: '/$404'
+      fullPath: '/$404'
+      preLoaderRoute: typeof R404RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  R404Route: R404Route,
   DemoClerkRoute: DemoClerkRoute,
   RoomRoomIdRoute: RoomRoomIdRoute,
 }
