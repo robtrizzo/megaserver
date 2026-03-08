@@ -1,3 +1,5 @@
-creds_file    = "~/.aws/credentials"
-region        = "us-east-1"
-creds_profile = "default"
+environment        = "dev"
+instance_type      = "t2.micro"
+app_version        = "latest"
+availability_zones = ["us-east-1a", "us-east-1b"]
+deploy_iam_user = "TerraformDeployRole"

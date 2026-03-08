@@ -12,9 +12,9 @@ func chain(h http.Handler, middlewares ...middleware) http.Handler {
 }
 
 func logRoute() middleware {
-	return func(h http.Handler) http.Handler { return nil }
+	return func(h http.Handler) http.Handler { return h }
 }
 
 func adminRoute() middleware {
-	return func(h http.Handler) http.Handler { return nil }
+	return func(h http.Handler) http.Handler { return h }
 }

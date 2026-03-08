@@ -2,7 +2,9 @@ package secrets
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 )
 
 type SecretType int
@@ -19,19 +21,24 @@ type SecretManager interface {
 	GetSecret(key SecretType) (string, error)
 }
 
-func NewSecretManager(keyMap map[SecretType]string) SecretManager {
+func NewSecretManager(logger *slog.Logger) SecretManager {
 	return &secretManagerImpl{
-		keyMap: keyMap,
+		keyMap: map[SecretType]string{
+			Clerk: strings.TrimSpace(os.Getenv("CLERK_SECRET_KEY")),
+		},
+		logger: logger,
 	}
 }
 
 type secretManagerImpl struct {
 	keyMap map[SecretType]string
+
+	logger *slog.Logger
 }
 
 func (s *secretManagerImpl) GetSecret(keyType SecretType) (string, error) {
-	if k := os.Getenv(s.keyMap[keyType]); k != "" {
+	if k := s.keyMap[keyType]; k != "" {
 		return k, nil
 	}
-	return "", fmt.Errorf("secret not found: %s", s.keyMap[keyType])
+	return "", fmt.Errorf("secret not found for type %d", keyType)
 }

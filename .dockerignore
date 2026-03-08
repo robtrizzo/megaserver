@@ -1,0 +1,12 @@
+.git
+.github
+
+**/.terraform
+infra/.terraform
+
+**/*.pem
+**/*.key
+
+**/node_modules
+**/dist
+**/build

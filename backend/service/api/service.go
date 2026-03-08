@@ -31,13 +31,11 @@ func Init() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	secretManager := secrets.NewSecretManager(map[secrets.SecretType]string{
-		secrets.Clerk: "CLERK_SECRET_KEY",
-	})
+	secretManager := secrets.NewSecretManager(logger)
 
 	if s, err := secretManager.GetSecret(secrets.Clerk); err != nil {
 		logger.Error(err.Error())
-		os.Exit(1)
+		panic(err)
 	} else {
 		clerk.SetKey(s)
 	}
